@@ -10,6 +10,10 @@ from .serializers import*
 # Create your views here.
 
 # this fun gets from doctors or add a new doctors
+# we have one url for both options
+# url= http://localhost:8000/api/doctor/
+# if you use GET method you will get a new doctor
+# if you use POST method you will add a new doctor
 @api_view(['GET','POST'])
 def get_Add_Doctor(request): 
     if request.method =='GET':
@@ -17,18 +21,36 @@ def get_Add_Doctor(request):
         serializer = DoctorSerializer(doctors,many =True)
         return JsonResponse(serializer.data, status = status.HTTP_200_ok)
     if request == 'POST':
-        return  Response({'message':'the method is not allowed', 'status':status.HTTP_405_METHOD_NOT_ALLOWED})
+        serializer = DoctorSerializer(data=request.data)
+        # verify if passed is valid
+        # the data is not valid if for exemple the email is not well formatted
+        if serializer.is_valid():
+            # add the doctor to the database
+            serializer.save()
+            # the data return a json data
+            return JsonResponse({'message':'you have to use POST or GET'}, status= status.HTTP_201_CREATED)
+        # if the data retuen yhe error
+        return JsonResponse(serializer.data, status = status.HTTP_400_BAD_REQUEST)
+    return  Response({'message':'the method is not allowed', 'status':status.HTTP_405_METHOD_NOT_ALLOWED})
 
- #the patients of a given doctor:   
-@api_view(['GET'])
-def doctor_patients_list(request, doctor_id):
-    try:
-        doctor = Doctor.objects.get(pk = doctor_id)
-        patient = Patient.objects.filter(doctor=doctor)
-        serializer = PatientSerializer(patient, many =True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    except Doctor.DoesNotExist:
-        return Response({'error':'Doctor does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+#this function get all doctor patients or delete all of them :
+@api_view(['GET','DELETE'])
+def get_doctor_patients(request,doctor_id):
+        
+        doctor1=Doctor.objects.get(pk=doctor_id)
+        if doctor1 is None:
+            return JsonResponse({'message':f'Doctor with id = {doctor_id} not found'},status=status.HTTP_404_NOT_FOUND)
+
+        patients=Prescription.objects.filter(doctor=doctor1)
+        if request.method=='GET':
+            serializer=PatientSerializer(patients,many=True)
+            #serializer.data allows to get the data in json format after serialization
+            return JsonResponse(serializer.data,status=status.HTTP_200_OK, safe= False)
+        elif request.method=='DELETE':
+            for patient in patients:
+                patient.delete()
+            return JsonResponse({'message':f'All patients of doctor with id = {doctor_id} are deleted'},status=status.HTTP_202_ACCEPTED)
+        return JsonResponse({'message':'You have to use GET or DELETE'},status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 # the turnover for a given pharmacist during a given week:  
 @api_view(['GET'])
